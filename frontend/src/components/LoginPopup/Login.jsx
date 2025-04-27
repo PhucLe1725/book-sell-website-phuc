@@ -17,7 +17,9 @@ const Login = ({ handleSignUp, handleNotice, handleForgotPassword }) => {
   };
   //Đẩy DL lên Database 
   const handleLogin = (form) =>{
-    fetch("http://localhost:8090/api/users/login",{
+    const apiUrl = process.env.REACT_APP_API_URL;
+
+    fetch(`${apiUrl}/api/users/login`,{
       method:"POST",      
       headers: {      
         'Content-Type': 'application/json',

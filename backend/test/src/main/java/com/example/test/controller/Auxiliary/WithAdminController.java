@@ -19,6 +19,7 @@
 
     @RestController
     @RequestMapping("/api/chat/admin")
+    @CrossOrigin(origins = "https://book-sell-website-phuc.onrender.com")
     public class WithAdminController {
 
         @Autowired
