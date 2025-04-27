@@ -1,14 +1,26 @@
-FROM maven:3-openjdk-17 AS build
+# Build stage
+FROM maven:3-openjdk-21 AS build
 WORKDIR /app
 
-COPY . .
+# Copy pom.xml và download dependencies để cache
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+# Copy source code
+COPY src ./src
+
+# Build ứng dụng (skip test để nhanh hơn)
 RUN mvn clean package -DskipTests
 
 # Run stage
-FROM openjdk:17-jdk-slim
+FROM openjdk:21-jdk-slim
 WORKDIR /app
 
-COPY --from=build /app/target/BookStore-0.0.1-SNAPSHOT.war bookstore.war
+# Copy file jar từ build stage
+COPY --from=build /app/target/test-0.0.1-SNAPSHOT.jar app.jar
+
+# Expose đúng cổng 8090
 EXPOSE 8090
 
-ENTRYPOINT ["java", "-jar", "bookstore.war"]
+# Chạy app
+ENTRYPOINT ["java", "-jar", "app.jar"]
