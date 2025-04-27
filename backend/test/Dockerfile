@@ -9,6 +9,6 @@ FROM openjdk:17-jdk-slim
 WORKDIR /app
 
 COPY --from=build /app/target/BookStore-0.0.1-SNAPSHOT.war bookstore.war
-EXPOSE 8080
+EXPOSE 8090
 
 ENTRYPOINT ["java", "-jar", "bookstore.war"]
