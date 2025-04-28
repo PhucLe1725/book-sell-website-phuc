@@ -19,11 +19,12 @@ const ChatButton = () => {
   // ✅ Gọi API lấy lịch sử tin nhắn
   useEffect(() => {
     const fetchMessages = async () => {
+      const apiUrl = import.meta.env.VITE_API_URL;
       try {
         let response;
         if (chatMode == "admin") {
           response = await axios.post(
-            "http://localhost:8090/api/chat/admin/history",
+            `${apiUrl}/api/chat/admin/history`,
             { userId: userId },
             {
               headers: config,
@@ -35,7 +36,7 @@ const ChatButton = () => {
           console.log("Group ID:", groupId);
   
           response = await axios.post(
-            "http://localhost:8090/api/chat/community/history",
+            `${apiUrl}/api/chat/community/history`,
             { groupId: groupId },
             {
               headers: config,
@@ -76,6 +77,7 @@ const ChatButton = () => {
 
   // ✅ Gửi tin nhắn
   const handleSendMessage = () => {
+    const apiUrlbase = import.meta.env.VITE_API_URL;
     if (!newMessage.trim()) {
       alert("Vui lòng nhập nội dung tin nhắn!");
       return;
@@ -83,8 +85,8 @@ const ChatButton = () => {
   
     const apiUrl =
       chatMode === "admin"
-        ? "http://localhost:8090/api/chat/admin/send"
-        : "http://localhost:8090/api/chat/community/send";
+        ? `${apiUrlbase}/api/chat/admin/send`
+        : `${apiUrlbase}/api/chat/community/send`;
   
     const requestBody =
       chatMode === "admin"
@@ -121,7 +123,7 @@ const ChatButton = () => {
       {/* Nút mở chat */}
       <button
         onClick={toggleChat}
-        className="fixed bottom-5 right-5 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 flex items-center justify-center"
+        className="fixed bottom-5 right-5 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 flex items-center justify-center z-[9999]"
       >
         <FaComments size={20} />
       </button>
@@ -132,7 +134,7 @@ const ChatButton = () => {
           className={`fixed ${isFullscreen
               ? "top-16 left-0 w-full h-[calc(80%)]"
               : "bottom-16 right-5 w-80"
-            } bg-white p-4 rounded-lg shadow-lg border transition-all flex flex-col`}
+            } bg-white p-4 rounded-lg shadow-lg border transition-all flex flex-col z-[9999]`}
         >
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
