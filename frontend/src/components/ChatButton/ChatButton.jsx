@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { FaExpand, FaCompress, FaComments } from "react-icons/fa";
+import SockJS from "sockjs-client/dist/sockjs";
+import Stomp from "webstomp-client";
 import axios from "axios";
 import Cookies from "js.cookie"
 
+const apiUrl = import.meta.env.VITE_API_URL;
+const socket = new SockJS(`${apiUrl}/ws`);
 
+let stompClient = Stomp.over(socket);
 const ChatButton = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [chatMode, setChatMode] = useState("admin"); // admin, group1, group2
-  const [messages, setMessages] = useState([]);
   const [userId, setUserId] = useState(Cookies.get('userId'));
   const [newMessage, setNewMessage] = useState(""); // Nội dung tin nhắn mới
   const userToken = localStorage.getItem("token");
@@ -17,76 +21,107 @@ const ChatButton = () => {
   const config = {'Authorization': `Bearer ${Cookies.get('authToken')}`}
 
   // ✅ Gọi API lấy lịch sử tin nhắn
+  const [messages, setMessages] = useState([]);
   useEffect(() => {
-    const fetchMessages = async () => {
-      const apiUrl = import.meta.env.VITE_API_URL;
-      try {
-        let response;
-        if (chatMode == "admin") {
-          response = await axios.post(
-            `${apiUrl}/api/chat/admin/history`,
-            { userId: userId },
-            {
-              headers: config,
-            }
-          );
-        } else if (chatMode == "group1" || chatMode == "group2") {
-          const groupId = chatMode == "group1" ? 1 : 2;
-          console.log("Chat Mode:", chatMode);
-          console.log("Group ID:", groupId);
+    
+    const bottom = document.getElementById("bottom")
+    if (bottom!=null) bottom.scrollIntoView()
+  },[messages])
   
-          response = await axios.post(
-            `${apiUrl}/api/chat/community/history`,
-            { groupId: groupId },
-            {
-              headers: config,
-            }
-          );
-        }
-  
-        console.log("Response Data:", response.data);
-  
-        const filteredMessages = response.data.filter((msg) => {
-          if (chatMode == "admin") {
-            return (
-              msg.chatType == "PRIVATE" &&
-              (msg.sender.id == userId || msg.receiver?.id === userId)
-            );
-          } else {
-            return (
-              msg.chatType == "GROUP"            
-            );
+  useEffect(() => {
+    fetchMessages(chatMode);
+  }, [chatMode]);
+  useEffect(() => {
+
+    connectWebSocket();
+  }, [])
+  const ADMIN_ID = 16;  
+  const connectWebSocket = () => {
+    stompClient.connect({}, function (frame) {
+      let channel = '';
+      if (chatMode == "admin") channel = "/topic/user-chat/"+ userId;
+      else channel = '/topic/group-chat/'+ groupId;
+      // Subscribe kênh admin chat
+      stompClient.subscribe("/topic/user-chat/"+ userId, function (message) {
+        const messageBody = JSON.parse(message.body);
+        if (messageBody.chatGroup==null)
+          setMessages(messages => [...messages, messageBody])
+      });
+      stompClient.subscribe("/topic/group-chat/1", function (message) {
+        const messageBody = JSON.parse(message.body);
+          if (messageBody.chatGroup.groupId==1)
+            setMessages(messages => [...messages, messageBody]);
+      });
+      stompClient.subscribe("/topic/group-chat/2", function (message) {
+        const messageBody = JSON.parse(message.body);
+          if (messageBody.chatGroup.groupId==2)
+            setMessages(messages => [...messages, messageBody]);
+      });
+      fetchMessages();
+    })
+  }
+  const fetchMessages = async () => {
+    try {
+      let response;
+      if (chatMode == "admin") {
+        response = await axios.post(
+          `${apiUrl}/api/chat/admin/history`,
+          { userId: userId },
+          {
+            headers: config,
           }
-        });
-  
-        console.log("Filtered Messages:", filteredMessages);
-  
-        setMessages(filteredMessages);
-      } catch (error) {
-        console.error("Lỗi khi gọi API:", error);
-        if (error.response) {
-          console.log("STATUS:", error.response.status);
-          console.log("DATA:", error.response.data);
-        }
-        alert("Không thể tải lịch sử chat. Vui lòng thử lại sau.");
+        );
+      } else if (chatMode == "group1" || chatMode == "group2") {
+        const groupId = chatMode == "group1" ? 1 : 2;
+        console.log("Chat Mode:", chatMode);
+        console.log("Group ID:", groupId);
+
+        response = await axios.post(
+          `${apiUrl}/api/chat/community/history`,
+          { groupId: groupId },
+          {
+            headers: config,
+          }
+        );
       }
-    };
-  
-    fetchMessages();
-  }, [chatMode, userId]);
+      console.log("Response Data:", response.data);
+
+      const filteredMessages = response.data.filter((msg) => {
+        if (chatMode == "admin") {
+          return (
+            msg.chatType == "PRIVATE" &&
+            (msg.sender.id == userId || msg.receiver?.id === userId)
+          );
+        } else {
+          return (
+            msg.chatType == "GROUP"            
+          );
+        }
+      });
+
+      console.log("Filtered Messages:", filteredMessages);
+      setMessages(filteredMessages);
+    } catch (error) {
+      console.error("Lỗi khi gọi API:", error);
+      if (error.response) {
+        console.log("STATUS:", error.response.status);
+        console.log("DATA:", error.response.data);
+      }
+      alert("Không thể tải lịch sử chat. Vui lòng thử lại sau.");
+    }
+  };
 
   // ✅ Gửi tin nhắn
   const handleSendMessage = () => {
-    const apiUrlbase = import.meta.env.VITE_API_URL;
     if (!newMessage.trim()) {
       alert("Vui lòng nhập nội dung tin nhắn!");
       return;
     }
   
-    const apiUrl =
+    const apiUrl1 =
       chatMode === "admin"
-        ? `${apiUrlbase}/api/chat/admin/send`
-        : `${apiUrlbase}/api/chat/community/send`;
+        ? `${apiUrl}/api/chat/admin/send`
+        : `${apiUrl}/api/chat/community/send`;
   
     const requestBody =
       chatMode === "admin"
@@ -94,36 +129,25 @@ const ChatButton = () => {
         : { senderId: userId, message: newMessage, groupId: chatMode == "group1" ? 1 : 2 };
   
     axios
-      .post(apiUrl, requestBody, {
+      .post(apiUrl1, requestBody, {
         headers: {
           Authorization: `Bearer ${Cookies.get('authToken')}`,
         },
       })
       .then((response) => {
         console.log("Response Data:", response.data);
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          {
-            messageId: response.data.messageId || new Date().getTime(),
-            sender: { id: userId, name: "Bạn" },
-            message: newMessage,
-            createdAt: new Date().toISOString(),
-            groupId: chatMode == "group1" ? 1 : 2,
-          },
-        ]);
         setNewMessage("");
       })
       .catch((error) => {
         console.error("Lỗi khi gửi tin nhắn:", error);
       });
   };
-
   return (
     <div>
       {/* Nút mở chat */}
       <button
         onClick={toggleChat}
-        className="fixed bottom-5 right-5 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 flex items-center justify-center z-[9999]"
+        className="fixed bottom-5 right-5 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 flex items-center justify-center"
       >
         <FaComments size={20} />
       </button>
@@ -134,7 +158,7 @@ const ChatButton = () => {
           className={`fixed ${isFullscreen
               ? "top-16 left-0 w-full h-[calc(80%)]"
               : "bottom-16 right-5 w-80"
-            } bg-white p-4 rounded-lg shadow-lg border transition-all flex flex-col z-[9999]`}
+            } bg-white p-4 rounded-lg shadow-lg border transition-all flex flex-col`}
         >
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
@@ -204,6 +228,9 @@ const ChatButton = () => {
                 </div>
               </div>
             ))}
+            <div style={{ float:"left", clear: "both" }}
+                 id="bottom"> 
+            </div>
           </div>
 
           {/* Nhập tin nhắn */}
@@ -213,6 +240,7 @@ const ChatButton = () => {
               className="flex-1 border rounded p-2 mr-2 text-black"
               placeholder="Nhập tin nhắn..."
               value={newMessage}
+              onKeyDown={(e) => {if (e.key==='Enter') handleSendMessage()}}
               onChange={(e) => setNewMessage(e.target.value)}
             />
             <button
